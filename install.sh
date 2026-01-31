@@ -6,9 +6,11 @@
 set -euo pipefail
 
 ### ===== USER CONFIG =====
-DISK="/dev/sda"
-HOSTNAME="arch"
-USERNAME="maxlar"
+# DISK will be selected interactively
+DISK=""
+# HOSTNAME and USERNAME will be selected interactively
+HOSTNAME=""
+USERNAME=""
 TIMEZONE="Africa/Cairo"
 LOCALE="en_US.UTF-8"
 KEYMAP="us"
@@ -16,8 +18,63 @@ EFI_SIZE="512M"
 ### =======================
 
 echo "== Arch Linux Automated Installer By Maxlar =="
-read -rp "This will ERASE ${DISK}. Type YES to continue: " CONFIRM
-[[ "$CONFIRM" == "YES" ]] || exit 1
+
+echo
+while true; do
+  read -rp "Enter hostname for this system: " HOSTNAME
+
+  # RFC 952 / 1123 hostname validation
+  if [[ ! "$HOSTNAME" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]]; then
+    echo "[ERROR] Invalid hostname. Use lowercase letters, digits, and '-', max 63 chars, no leading/trailing '-'."
+    continue
+  fi
+
+  break
+done
+
+echo
+while true; do
+  read -rp "Enter username to create: " USERNAME
+
+  # must start with lowercase letter, contain only lowercase letters, numbers, underscore or hyphen
+  if [[ ! "$USERNAME" =~ ^[a-z][a-z0-9_-]*$ ]]; then
+    echo "[ERROR] Invalid username. Use lowercase letters, numbers, '-' or '_', and start with a letter."
+    continue
+  fi
+
+  # avoid reserved/system usernames
+  if getent passwd "$USERNAME" >/dev/null; then
+    echo "[ERROR] Username '$USERNAME' already exists. Choose another one."
+    continue
+  fi
+
+  break
+done
+
+echo "[INFO] Hostname set to: $HOSTNAME"
+echo "[INFO] Username set to: $USERNAME"
+
+echo "Available disks:"
+lsblk -dpno NAME,SIZE,MODEL | grep -E "disk"
+
+echo
+while true; do
+  read -rp "Enter the disk to install Arch Linux on (e.g. /dev/nvme0n1): " DISK
+
+  if [[ ! -b "$DISK" ]]; then
+    echo "[ERROR] $DISK is not a valid block device. Please try again."
+    continue
+  fi
+
+  echo
+  read -rp "This will ERASE ALL DATA on $DISK. Type YES to continue (or NO to reselect): " CONFIRM
+
+  if [[ "$CONFIRM" == "YES" ]]; then
+    break
+  else
+    echo "[INFO] Disk selection cancelled. Please choose again."
+  fi
+done
 
 read -rp "Enable FULL DISK ENCRYPTION (LUKS)? (yes/no): " USE_LUKS
 # --- VM Detection ---
@@ -134,11 +191,16 @@ if [[ "$USE_LUKS" == "yes" ]]; then
 fi
 
 # --- TPM2 Auto-Unlock (Optional) ---
-if [[ "$USE_LUKS" == "yes" ]] && systemd-detect-virt --quiet || [[ -c /dev/tpmrm0 ]]; then
-  echo "[INFO] TPM2 detected, enrolling auto-unlock"
-  systemd-cryptenroll --tpm2-device=auto /dev/disk/by-uuid/$(blkid -s UUID -o value $ROOT_PART)
-else
-  echo "[INFO] TPM2 not available, using passphrase only"
+if [[ "$USE_LUKS" == "yes" ]]; then
+  if systemd-detect-virt --quiet; then
+    echo "[INFO] VM detected, skipping TPM2 auto-unlock"
+  elif [[ -c /dev/tpmrm0 ]]; then
+    echo "[INFO] TPM2 detected, enrolling auto-unlock"
+    systemd-cryptenroll --tpm2-device=auto \
+      /dev/disk/by-uuid/$(blkid -s UUID -o value $ROOT_PART)
+  else
+    echo "[INFO] TPM2 not available, using passphrase only"
+  fi
 filesystems fsck)/' /etc/mkinitcpio.conf
   mkinitcpio -P
   echo "cryptroot UUID=$(blkid -s UUID -o value $ROOT_PART) none luks" >> /etc/crypttab
