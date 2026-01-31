@@ -55,7 +55,7 @@ echo "[INFO] Hostname set to: $HOSTNAME"
 echo "[INFO] Username set to: $USERNAME"
 
 echo "Available disks:"
-lsblk -dpno NAME,SIZE,MODEL | grep -E "disk"
+lsblk -dpno NAME,SIZE,MODEL | grep -E "HARDDISK|Disk|disk"
 
 echo
 while true; do
