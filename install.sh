@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Arch Linux Automated Base Install Script (UEFI)
-# OPTIONAL: LUKS Full Disk Encryption
+# WARNING: THIS SCRIPT IS EXPERIMENTAL AND PROVIDED "AS IS"
 # WARNING: THIS WILL WIPE THE TARGET DISK
 
 set -euo pipefail
@@ -15,7 +14,24 @@ TIMEZONE="Africa/Cairo"
 LOCALE="en_US.UTF-8"
 KEYMAP="us"
 EFI_SIZE="512M"
+SCRIPT_REPO="https://raw.githubusercontent.com/maxlar01/arch-auto-install/main/install.sh"
 ### =======================
+
+
+# --- Self-update mechanism ---
+echo "[INFO] Checking for script updates..."
+TMP_SCRIPT="/tmp/arch_installer_latest.sh"
+if curl -fsSL "$SCRIPT_REPO" -o "$TMP_SCRIPT"; then
+    if ! cmp -s "$TMP_SCRIPT" "$0"; then
+        echo "[INFO] New version found. Updating and re-executing script..."
+        chmod +x "$TMP_SCRIPT"
+        exec "$TMP_SCRIPT" "$@"
+    else
+        echo "[INFO] Script is up-to-date. Continuing..."
+    fi
+else
+    echo "[WARN] Could not check for updates. Continuing with current script."
+fi
 
 echo "== Arch Linux Automated Installer By Maxlar =="
 
