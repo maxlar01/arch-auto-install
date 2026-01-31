@@ -141,7 +141,7 @@ mount "$EFI_PART" /mnt/boot
 # --- Add Reflector ---
 echo "[6/12] Installing reflector for mirror optimization"
 pacman -Sy --noconfirm python python-requests reflector
-reflector --latest 10 --sort rate --save /etc/pacman.d/mirrorlist
+reflector --latest 50 --protocol https --sort rate --save /etc/pacman.d/mirrorlist
 
 # --- Install Base ---
 echo "[7/12] Installing base system"
@@ -158,9 +158,9 @@ EXTRA_PKGS=""
 
 # CPU microcode
 if [[ "$CPU_VENDOR" == "GenuineIntel" ]]; then
-  EXTRA_PKGS+=" intel-ucode"
+  EXTRA_PKGS+="intel-ucode"
 elif [[ "$CPU_VENDOR" == "AuthenticAMD" ]]; then
-  EXTRA_PKGS+=" amd-ucode"
+  EXTRA_PKGS+="amd-ucode"
 fi
 
 pacstrap /mnt base linux linux-firmware vim sudo networkmanager grub efibootmgr cryptsetup systemd "$EXTRA_PKGS"
