@@ -140,7 +140,7 @@ mount "$EFI_PART" /mnt/boot
 
 # --- Add Reflector ---
 echo "[6/12] Installing reflector for mirror optimization"
-pacman -Sy --noconfirm reflector
+pacman -Sy --noconfirm python python-requests reflector
 reflector --latest 10 --sort rate --save /etc/pacman.d/mirrorlist
 
 # --- Install Base ---
