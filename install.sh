@@ -104,11 +104,11 @@ fi
 
 loadkeys "$KEYMAP"
 
-echo "[1/11] Enabling NTP"
+echo "[1/12] Enabling NTP"
 timedatectl set-ntp true
 
 # --- Partition Disk ---
-echo "[2/11] Partitioning disk"
+echo "[2/12] Partitioning disk"
 sgdisk --zap-all "$DISK"
 sgdisk -n 1:0:+$EFI_SIZE -t 1:ef00 "$DISK"
 sgdisk -n 2:0:0 -t 2:8300 "$DISK"
@@ -128,18 +128,23 @@ else
 fi
 
 # --- Format ---
-echo "[4/11] Formatting partitions"
+echo "[4/12] Formatting partitions"
 mkfs.fat -F32 "$EFI_PART"
 mkfs.ext4 -F "$ROOT_DEV"
 
 # --- Mount ---
-echo "[5/11] Mounting partitions"
+echo "[5/12] Mounting partitions"
 mount "$ROOT_DEV" /mnt
 mkdir -p /mnt/boot
 mount "$EFI_PART" /mnt/boot
 
+# --- Add Reflector ---
+echo "[6/12] Installing reflector for mirror optimization"
+pacman -Sy --noconfirm reflector
+reflector --latest 10 --sort rate --save /etc/pacman.d/mirrorlist
+
 # --- Install Base ---
-echo "[6/11] Installing base system"
+echo "[7/12] Installing base system"
 # --- Hardware auto-detection (pre-install) ---
 CPU_VENDOR=$(lscpu | awk -F: '/Vendor ID/ {gsub(/ /, "", $2); print $2}')
 GPU_VENDOR=$(lspci | grep -E "VGA|3D" || true)
@@ -149,8 +154,6 @@ echo "[INFO] CPU vendor: $CPU_VENDOR"
 echo "[INFO] GPU info: $GPU_VENDOR"
 echo "[INFO] Laptop detected: $IS_LAPTOP"
 
-# --- Install Base ---
-echo "[6/12] Installing base system"
 EXTRA_PKGS=""
 
 # CPU microcode
@@ -160,14 +163,14 @@ elif [[ "$CPU_VENDOR" == "AuthenticAMD" ]]; then
   EXTRA_PKGS+=" amd-ucode"
 fi
 
-pacstrap /mnt base linux linux-firmware vim sudo networkmanager grub efibootmgr cryptsetup systemd $EXTRA_PKGS
+pacstrap /mnt base linux linux-firmware vim sudo networkmanager grub efibootmgr cryptsetup systemd "$EXTRA_PKGS"
 
 # --- fstab ---
-echo "[7/11] Generating fstab"
+echo "[8/12] Generating fstab"
 genfstab -U /mnt >> /mnt/etc/fstab
 
 # --- Chroot Config ---
-echo "[8/11] Configuring system"
+echo "[9/12] Configuring system"
 arch-chroot /mnt /bin/bash <<EOF
 ln -sf /usr/share/zoneinfo/$TIMEZONE /etc/localtime
 hwclock --systohc
@@ -184,6 +187,23 @@ cat > /etc/hosts <<HOSTS
 HOSTS
 
 systemctl enable NetworkManager
+
+# --- Beautify Pacman ---
+sed -i '/^#Color/c\Color' /etc/pacman.conf
+sed -i '/^#ILoveCandy/c\ILoveCandy' /etc/pacman.conf
+sed -i '/^#UseSyslog/c\UseSyslog' /etc/pacman.conf
+sed -i '/^#CheckSpace/c\CheckSpace' /etc/pacman.conf
+sed -i '/^#VerbosePkgLists/c\VerbosePkgLists' /etc/pacman.conf
+sed -i '/^#ParallelDownloads/c\ParallelDownloads' /etc/pacman.conf
+
+# --- Enable Multilib ---
+sed -i '/\[multilib\]/,/Include/ s/^#//' /etc/pacman.conf
+pacman -Syyu --noconfirm
+
+# --- Install Reflector (post-install) ---
+pacman -S --noconfirm reflector
+cp /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.bak
+reflector --latest 50 --protocol https --sort rate --save /etc/pacman.d/mirrorlist
 
 # --- GPU drivers ---
 if echo "$GPU_VENDOR" | grep -qi intel; then
@@ -213,13 +233,11 @@ if [[ "$USE_LUKS" == "yes" ]]; then
   elif [[ -c /dev/tpmrm0 ]]; then
     echo "[INFO] TPM2 detected, enrolling auto-unlock"
     systemd-cryptenroll --tpm2-device=auto \
-      /dev/disk/by-uuid/$(blkid -s UUID -o value $ROOT_PART)
+      /dev/disk/by-uuid/$(blkid -s UUID -o value "$ROOT_PART")
   else
     echo "[INFO] TPM2 not available, using passphrase only"
   fi
-filesystems fsck)/' /etc/mkinitcpio.conf
-  mkinitcpio -P
-  echo "cryptroot UUID=$(blkid -s UUID -o value $ROOT_PART) none luks" >> /etc/crypttab
+  echo "cryptroot UUID=$(blkid -s UUID -o value "$ROOT_PART") none luks" >> /etc/crypttab
 fi
 
 if [[ "$IS_VM" == "yes" ]]; then
@@ -229,7 +247,7 @@ else
 fi
 
 if [[ "$USE_LUKS" == "yes" ]]; then
-  sed -i "s|GRUB_CMDLINE_LINUX=\"\"|GRUB_CMDLINE_LINUX=\"cryptdevice=UUID=$(blkid -s UUID -o value $ROOT_PART):cryptroot root=/dev/mapper/cryptroot\"|" /etc/default/grub
+  sed -i "s|GRUB_CMDLINE_LINUX=\"\"|GRUB_CMDLINE_LINUX=\"cryptdevice=UUID=$(blkid -s UUID -o value "$ROOT_PART"):cryptroot root=/dev/mapper/cryptroot\"|" /etc/default/grub
 fi
 
 grub-mkconfig -o /boot/grub/grub.cfg
@@ -240,7 +258,7 @@ sed -i 's/^# %wheel ALL=(ALL) ALL/%wheel ALL=(ALL) ALL/' /etc/sudoers
 EOF
 
 # --- Passwords ---
-echo "[9/11] Set passwords"
+echo "[10/12] Set passwords"
 echo "Set ROOT password"
 arch-chroot /mnt passwd
 
@@ -248,8 +266,8 @@ echo "Set password for $USERNAME"
 arch-chroot /mnt passwd "$USERNAME"
 
 # --- Finish ---
-echo "[10/11] Cleaning up"
+echo "[11/12] Cleaning up"
 umount -R /mnt
 
 # --- Done ---
-echo "[11/11] Installation complete! Reboot and remove install media."
+echo "[12/12] Installation complete! Reboot and remove install media."
