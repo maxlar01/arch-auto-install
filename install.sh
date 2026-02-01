@@ -336,11 +336,11 @@ if [[ "$INSTALL_TYPE" == "2" ]]; then
     systemctl enable sddm
     
   elif [[ "$DESKTOP_ENV" == "GNOME" ]]; then
-    pacman -S --noconfirm xorg gnome gnome-extra gdm
+    pacman -S --noconfirm xorg gnome gnome-extra gnome-terminal gdm
     systemctl enable gdm
     
   elif [[ "$DESKTOP_ENV" == "COSMIC" ]]; then
-    pacman -S --noconfirm cosmic-session cosmic-greeter cosmic-terminal
+    pacman -S --noconfirm cosmic-session cosmic-greeter cosmic-terminal cosmic-text-editor cosmic-store
     systemctl enable cosmic-greeter
   fi
   
@@ -355,7 +355,7 @@ if [[ "$INSTALL_TYPE" == "2" ]]; then
   fi
 
   # Install common desktop packages
-  pacman -S --noconfirm firefox flatpak vlc obsidian bitwarden flameshot
+  pacman -S --noconfirm firefox flatpak vlc obsidian bitwarden flameshot ghostty neofetch
   
 EOFDE
   
