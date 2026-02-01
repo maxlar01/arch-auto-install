@@ -5,9 +5,8 @@
 set -euo pipefail
 
 ### ===== USER CONFIG =====
-# DISK will be selected interactively
+# DISK, HOSTNAME and USERNAME will be selected interactively
 DISK=""
-# HOSTNAME and USERNAME will be selected interactively
 HOSTNAME=""
 USERNAME=""
 TIMEZONE="Africa/Cairo"
@@ -104,7 +103,7 @@ fi
 
 loadkeys "$KEYMAP"
 
-echo "[1/12] Enabling NTP"
+echo "[1/13] Enabling NTP"
 timedatectl set-ntp true
 
 # --- Partition Disk ---
@@ -134,23 +133,23 @@ else
 fi
 
 # --- Format ---
-echo "[4/12] Formatting partitions"
+echo "[4/13] Formatting partitions"
 mkfs.fat -F32 "$EFI_PART"
 mkfs.ext4 -F "$ROOT_DEV"
 
 # --- Mount ---
-echo "[5/12] Mounting partitions"
+echo "[5/13] Mounting partitions"
 mount "$ROOT_DEV" /mnt
 mkdir -p /mnt/boot
 mount "$EFI_PART" /mnt/boot
 
 # --- Add Reflector ---
-echo "[6/12] Installing reflector for mirror optimization"
+echo "[6/13] Installing reflector for mirror optimization"
 pacman -Sy --noconfirm python python-requests reflector
 reflector --latest 12 --protocol https --sort rate --save /etc/pacman.d/mirrorlist
 
 # --- Install Base ---
-echo "[7/12] Installing base system"
+echo "[7/13] Installing base system"
 # --- Hardware auto-detection (pre-install) ---
 CPU_VENDOR=$(lscpu | awk -F: '/Vendor ID/ {gsub(/ /, "", $2); print $2}')
 GPU_VENDOR=$(lspci | grep -E "VGA|3D" || true)
@@ -172,12 +171,11 @@ fi
 pacstrap /mnt base linux linux-firmware vim sudo networkmanager grub efibootmgr cryptsetup systemd "$EXTRA_PKGS"
 
 # --- fstab ---
-echo "[8/12] Generating fstab"
+echo "[8/13] Generating fstab"
 genfstab -U /mnt >> /mnt/etc/fstab
 
 # --- Chroot Config ---
-echo "[9/12] Configuring system"
-
+echo "[9/13] Configuring system"
 # Get UUID for use in chroot
 ROOT_UUID=$(blkid -s UUID -o value "$ROOT_PART")
 
@@ -198,7 +196,7 @@ HOSTS
 
 systemctl enable NetworkManager
 
-# --- Beautify Pacman ---
+# --- Edit Pacman ---
 sed -i '/^#Color/c\Color' /etc/pacman.conf
 sed -i '/^Color/a\ILoveCandy' /etc/pacman.conf
 sed -i '/^#UseSyslog/c\UseSyslog' /etc/pacman.conf
@@ -278,8 +276,104 @@ sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
 
 EOF
 
+# --- Desktop Environment Selection ---
+echo
+echo "[10/13] Select installation type"
+while true; do
+  read -rp "Install type: (1) Server or (2) Desktop? Enter 1 or 2: " INSTALL_TYPE
+  
+  if [[ "$INSTALL_TYPE" == "1" ]]; then
+    echo "[INFO] Server installation selected. Skipping desktop environment."
+    break
+  elif [[ "$INSTALL_TYPE" == "2" ]]; then
+    echo "[INFO] Desktop installation selected."
+    
+    while true; do
+      echo "Select Desktop Environment:"
+      echo "  1) KDE Plasma"
+      echo "  2) GNOME"
+      echo "  3) COSMIC"
+      read -rp "Enter choice (1, 2, or 3): " DE_CHOICE
+      
+      if [[ "$DE_CHOICE" == "1" ]]; then
+        DESKTOP_ENV="KDE"
+        break
+      elif [[ "$DE_CHOICE" == "2" ]]; then
+        DESKTOP_ENV="GNOME"
+        break
+      elif [[ "$DE_CHOICE" == "3" ]]; then
+        DESKTOP_ENV="COSMIC"
+        break
+      else
+        echo "[ERROR] Invalid choice. Please enter 1, 2, or 3."
+      fi
+    done
+    break
+  else
+    echo "[ERROR] Invalid choice. Please enter 1 or 2."
+  fi
+done
+
+# --- Bluetooth Detection ---
+HAS_BLUETOOTH="no"
+if [[ "$INSTALL_TYPE" == "2" ]]; then
+  if lsusb | grep -i bluetooth >/dev/null || lspci | grep -i bluetooth >/dev/null || [ -d /sys/class/bluetooth ] && [ -n "$(ls -A /sys/class/bluetooth 2>/dev/null)" ]; then
+    HAS_BLUETOOTH="yes"
+    echo "[INFO] Bluetooth hardware detected"
+  else
+    echo "[INFO] No Bluetooth hardware detected"
+  fi
+fi
+
+# --- Install Desktop Environment ---
+if [[ "$INSTALL_TYPE" == "2" ]]; then
+  echo "[INFO] Installing $DESKTOP_ENV desktop environment"
+  
+  arch-chroot /mnt /bin/bash <<EOFDE
+  
+  if [[ "$DESKTOP_ENV" == "KDE" ]]; then
+    pacman -S --noconfirm xorg plasma plasma-wayland-session kde-applications sddm
+    systemctl enable sddm
+    
+  elif [[ "$DESKTOP_ENV" == "GNOME" ]]; then
+    pacman -S --noconfirm xorg gnome gnome-extra gdm
+    systemctl enable gdm
+    
+  elif [[ "$DESKTOP_ENV" == "COSMIC" ]]; then
+    # Add COSMIC repository
+    echo "[INFO] Adding COSMIC desktop repository..."
+    cat >> /etc/pacman.conf <<COSMICREPO
+
+[cosmic-epoch]
+Server = https://repo.system76.com/arch/cosmic-epoch/x86_64
+SigLevel = Optional TrustAll
+COSMICREPO
+    
+    pacman -Sy --noconfirm
+    pacman -S --noconfirm cosmic-session cosmic-greeter
+    systemctl enable cosmic-greeter
+  fi
+  
+  # Install Audio packages
+  pacman -S --noconfirm pipewire pipewire-alsa pipewire-pulse pipewire-jack wireplumber
+  
+  # Install Bluetooth packages if hardware detected
+  if [[ "$HAS_BLUETOOTH" == "yes" ]]; then
+    echo "[INFO] Installing Bluetooth packages..."
+    pacman -S --noconfirm bluez bluez-utils
+    systemctl enable bluetooth
+  fi
+
+  # Install common desktop packages
+  pacman -S --noconfirm firefox flatpak vlc obsidian bitwarden flameshot
+  
+EOFDE
+  
+  echo "[INFO] Desktop environment installation complete"
+fi
+
 # --- Passwords ---
-echo "[10/12] Set passwords"
+echo "[11/13] Set passwords"
 echo "Set ROOT password"
 arch-chroot /mnt passwd
 
@@ -287,8 +381,8 @@ echo "Set password for $USERNAME"
 arch-chroot /mnt passwd "$USERNAME"
 
 # --- Finish ---
-echo "[11/12] Cleaning up"
+echo "[12/13] Cleaning up"
 umount -R /mnt
 
 # --- Done ---
-echo "[12/12] Installation complete! Reboot and remove install media."
+echo "[13/13] Installation complete! Reboot and remove install media."
