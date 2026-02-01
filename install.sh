@@ -340,16 +340,6 @@ if [[ "$INSTALL_TYPE" == "2" ]]; then
     systemctl enable gdm
     
   elif [[ "$DESKTOP_ENV" == "COSMIC" ]]; then
-    # Add COSMIC repository
-    echo "[INFO] Adding COSMIC desktop repository..."
-    cat >> /etc/pacman.conf <<COSMICREPO
-
-[cosmic-epoch]
-Server = https://repo.system76.com/arch/cosmic-epoch/x86_64
-SigLevel = Optional TrustAll
-COSMICREPO
-    
-    pacman -Sy --noconfirm
     pacman -S --noconfirm cosmic-session cosmic-greeter
     systemctl enable cosmic-greeter
   fi
