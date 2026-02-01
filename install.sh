@@ -114,8 +114,14 @@ sgdisk -n 1:0:+$EFI_SIZE -t 1:ef00 "$DISK"
 sgdisk -n 2:0:0 -t 2:8300 "$DISK"
 partprobe "$DISK"
 
-EFI_PART="${DISK}1"
-ROOT_PART="${DISK}2"
+# Handle partition naming for NVMe vs SATA/SCSI
+if [[ "$DISK" =~ "nvme" ]] || [[ "$DISK" =~ "mmcblk" ]]; then
+  EFI_PART="${DISK}p1"
+  ROOT_PART="${DISK}p2"
+else
+  EFI_PART="${DISK}1"
+  ROOT_PART="${DISK}2"
+fi
 
 # --- Encryption (Optional) ---
 if [[ "$USE_LUKS" == "yes" ]]; then
@@ -141,7 +147,7 @@ mount "$EFI_PART" /mnt/boot
 # --- Add Reflector ---
 echo "[6/12] Installing reflector for mirror optimization"
 pacman -Sy --noconfirm python python-requests reflector
-reflector --latest 50 --protocol https --sort rate --save /etc/pacman.d/mirrorlist
+reflector --latest 12 --protocol https --sort rate --save /etc/pacman.d/mirrorlist
 
 # --- Install Base ---
 echo "[7/12] Installing base system"
@@ -158,9 +164,9 @@ EXTRA_PKGS=""
 
 # CPU microcode
 if [[ "$CPU_VENDOR" == "GenuineIntel" ]]; then
-  EXTRA_PKGS+="intel-ucode"
+  EXTRA_PKGS+=" intel-ucode"
 elif [[ "$CPU_VENDOR" == "AuthenticAMD" ]]; then
-  EXTRA_PKGS+="amd-ucode"
+  EXTRA_PKGS+=" amd-ucode"
 fi
 
 pacstrap /mnt base linux linux-firmware vim sudo networkmanager grub efibootmgr cryptsetup systemd "$EXTRA_PKGS"
@@ -171,6 +177,10 @@ genfstab -U /mnt >> /mnt/etc/fstab
 
 # --- Chroot Config ---
 echo "[9/12] Configuring system"
+
+# Get UUID for use in chroot
+ROOT_UUID=$(blkid -s UUID -o value "$ROOT_PART")
+
 arch-chroot /mnt /bin/bash <<EOF
 ln -sf /usr/share/zoneinfo/$TIMEZONE /etc/localtime
 hwclock --systohc
@@ -190,7 +200,7 @@ systemctl enable NetworkManager
 
 # --- Beautify Pacman ---
 sed -i '/^#Color/c\Color' /etc/pacman.conf
-sed -i '/^#ILoveCandy/c\ILoveCandy' /etc/pacman.conf
+sed -i '/^#Color/a\ILoveCandy' /etc/pacman.conf
 sed -i '/^#UseSyslog/c\UseSyslog' /etc/pacman.conf
 sed -i '/^#CheckSpace/c\CheckSpace' /etc/pacman.conf
 sed -i '/^#VerbosePkgLists/c\VerbosePkgLists' /etc/pacman.conf
@@ -233,11 +243,11 @@ if [[ "$USE_LUKS" == "yes" ]]; then
   elif [[ -c /dev/tpmrm0 ]]; then
     echo "[INFO] TPM2 detected, enrolling auto-unlock"
     systemd-cryptenroll --tpm2-device=auto \
-      /dev/disk/by-uuid/$(blkid -s UUID -o value "$ROOT_PART")
+      /dev/disk/by-uuid/$ROOT_UUID
   else
     echo "[INFO] TPM2 not available, using passphrase only"
   fi
-  echo "cryptroot UUID=$(blkid -s UUID -o value "$ROOT_PART") none luks" >> /etc/crypttab
+  echo "cryptroot UUID=$ROOT_UUID none luks" >> /etc/crypttab
 fi
 
 if [[ "$IS_VM" == "yes" ]]; then
@@ -247,13 +257,13 @@ else
 fi
 
 if [[ "$USE_LUKS" == "yes" ]]; then
-  sed -i "s|GRUB_CMDLINE_LINUX=\"\"|GRUB_CMDLINE_LINUX=\"cryptdevice=UUID=$(blkid -s UUID -o value "$ROOT_PART"):cryptroot root=/dev/mapper/cryptroot\"|" /etc/default/grub
+  sed -i "s|GRUB_CMDLINE_LINUX=\"\"|GRUB_CMDLINE_LINUX=\"cryptdevice=UUID=$ROOT_UUID:cryptroot root=/dev/mapper/cryptroot\"|" /etc/default/grub
 fi
 
 grub-mkconfig -o /boot/grub/grub.cfg
 
 useradd -m -G wheel -s /bin/bash $USERNAME
-sed -i 's/^# %wheel ALL=(ALL) ALL/%wheel ALL=(ALL) ALL/' /etc/sudoers
+sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
 
 EOF
 
