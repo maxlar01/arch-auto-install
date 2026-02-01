@@ -340,7 +340,7 @@ if [[ "$INSTALL_TYPE" == "2" ]]; then
     systemctl enable gdm
     
   elif [[ "$DESKTOP_ENV" == "COSMIC" ]]; then
-    pacman -S --noconfirm cosmic-session cosmic-greeter
+    pacman -S --noconfirm cosmic-session cosmic-greeter cosmic-terminal
     systemctl enable cosmic-greeter
   fi
   
