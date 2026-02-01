@@ -200,7 +200,7 @@ systemctl enable NetworkManager
 
 # --- Beautify Pacman ---
 sed -i '/^#Color/c\Color' /etc/pacman.conf
-sed -i '/^#Color/a\ILoveCandy' /etc/pacman.conf
+sed -i '/^Color/a\ILoveCandy' /etc/pacman.conf
 sed -i '/^#UseSyslog/c\UseSyslog' /etc/pacman.conf
 sed -i '/^#CheckSpace/c\CheckSpace' /etc/pacman.conf
 sed -i '/^#VerbosePkgLists/c\VerbosePkgLists' /etc/pacman.conf
