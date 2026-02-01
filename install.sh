@@ -232,7 +232,7 @@ fi
 
 # --- Initramfs for LUKS ---
 if [[ "$USE_LUKS" == "yes" ]]; then
-  sed -i 's/^HOOKS=.*/HOOKS=(base systemd autodetect keyboard sd-vconsole modconf block sd-encrypt filesystems fsck)/' /etc/mkinitcpio.conf
+  sed -i 's/^HOOKS=.*/HOOKS=(base udev autodetect keyboard keymap consolefont modconf block encrypt filesystems fsck)/' /etc/mkinitcpio.conf
   mkinitcpio -P
 fi
 
@@ -259,6 +259,17 @@ fi
 if [[ "$USE_LUKS" == "yes" ]]; then
   sed -i "s|GRUB_CMDLINE_LINUX=\"\"|GRUB_CMDLINE_LINUX=\"cryptdevice=UUID=$ROOT_UUID:cryptroot root=/dev/mapper/cryptroot\"|" /etc/default/grub
 fi
+
+# --- Configure GRUB settings ---
+sed -i 's/^#GRUB_DISABLE_OS_PROBER=.*/GRUB_DISABLE_OS_PROBER=false/' /etc/default/grub
+sed -i 's/^GRUB_DISABLE_OS_PROBER=.*/GRUB_DISABLE_OS_PROBER=false/' /etc/default/grub
+grep -q '^GRUB_DISABLE_OS_PROBER=' /etc/default/grub || echo 'GRUB_DISABLE_OS_PROBER=false' >> /etc/default/grub
+
+sed -i 's/^#GRUB_TIMEOUT=.*/GRUB_TIMEOUT=3/' /etc/default/grub
+sed -i 's/^GRUB_TIMEOUT=.*/GRUB_TIMEOUT=3/' /etc/default/grub
+
+grep -q '^GRUB_HIDDEN_TIMEOUT=' /etc/default/grub && sed -i 's/^GRUB_HIDDEN_TIMEOUT=.*/GRUB_HIDDEN_TIMEOUT=0/' /etc/default/grub || echo 'GRUB_HIDDEN_TIMEOUT=0' >> /etc/default/grub
+grep -q '^GRUB_HIDDEN_TIMEOUT_QUIET=' /etc/default/grub && sed -i 's/^GRUB_HIDDEN_TIMEOUT_QUIET=.*/GRUB_HIDDEN_TIMEOUT_QUIET=true/' /etc/default/grub || echo 'GRUB_HIDDEN_TIMEOUT_QUIET=true' >> /etc/default/grub
 
 grub-mkconfig -o /boot/grub/grub.cfg
 
