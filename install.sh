@@ -17,6 +17,40 @@ SCRIPT_REPO="https://raw.githubusercontent.com/maxlar01/arch-auto-install/main/i
 ### =======================
 
 
+# --- Laptop Detection and WiFi Setup ---
+if cat /sys/class/dmi/id/chassis_type 2>/dev/null | grep -Eq "8|9|10|14"; then
+  echo "[INFO] Laptop detected. Setting up WiFi connection..."
+  
+  # Check if already connected to internet
+  if ping -c 1 8.8.8.8 >/dev/null 2>&1; then
+    echo "[INFO] Already connected to the internet. Skipping WiFi setup."
+  else
+    echo "[INFO] Not connected to internet. Starting WiFi setup..."
+    
+    # Start iwctl interactive mode with instructions
+    echo ""
+    echo "WiFi Setup Instructions:"
+    echo "  1. Type: station wlan0 scan"
+    echo "  2. Type: station wlan0 get-networks"
+    echo "  3. Type: station wlan0 connect \"YOUR_NETWORK_NAME\""
+    echo "  4. Enter password when prompted"
+    echo "  5. Type: exit"
+    echo ""
+    read -rp "Press Enter to open iwctl (WiFi configuration tool)..."
+    iwctl
+    
+    # Verify connection
+    echo "[INFO] Verifying internet connection..."
+    if ping -c 1 8.8.8.8 >/dev/null 2>&1; then
+      echo "[INFO] Successfully connected to WiFi!"
+    else
+      echo "[WARN] Could not verify internet connection. Continuing anyway..."
+    fi
+  fi
+else
+  echo "[INFO] Desktop/Server detected. Assuming ethernet connection."
+fi
+
 # --- Self-update mechanism ---
 echo "[INFO] Checking for script updates..."
 TMP_SCRIPT="/tmp/arch_installer_latest.sh"
