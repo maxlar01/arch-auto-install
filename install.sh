@@ -66,8 +66,17 @@ else
     echo "[WARN] Could not check for updates. Continuing with current script."
 fi
 
-echo "== Arch Linux Automated Installer By Maxlar =="
-
+echo "== Arch Linux Automated Installer By =="
+cat << "EOF"
+  __  __          __   ___               _____  
+ |  \/  |   /\    \ \ / / |        /\   |  __ \ 
+ | \  / |  /  \    \ V /| |       /  \  | |__) |
+ | |\/| | / /\ \    > < | |      / /\ \ |  _  / 
+ | |  | |/ ____ \  / . \| |____ / ____ \| | \ \ 
+ |_|  |_/_/    \_\/_/ \_\______/_/    \_\_|  \_\
+                                                
+                                                
+EOF
 echo
 while true; do
   read -rp "Enter hostname for this system: " HOSTNAME
@@ -308,6 +317,14 @@ grub-mkconfig -o /boot/grub/grub.cfg
 useradd -m -G wheel -s /bin/bash $USERNAME
 sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
 
+# --- Install AUR Helper (yay) ---
+pacman -S --noconfirm git base-devel
+git clone https://aur.archlinux.org/yay.git
+cd yay
+makepkg -si --noconfirm
+cd ..
+rm -rf yay
+
 EOF
 
 # --- Desktop Environment Selection ---
@@ -384,10 +401,17 @@ if [[ "$INSTALL_TYPE" == "2" ]]; then
   # Install Bluetooth packages if hardware detected
   if [[ "$HAS_BLUETOOTH" == "yes" ]]; then
     echo "[INFO] Installing Bluetooth packages..."
-    pacman -S --noconfirm bluez bluez-utils
+    pacman -S --noconfirm bluez bluez-libs bluez-utils
     systemctl enable bluetooth
   fi
 
+  # --- Gesture Support for Touchpads ---
+  if [[ "$IS_LAPTOP" == "yes" ]]; then
+    yay -S --noconfirm touchegg touche
+    systemctl enable touchegg.service
+    systemctl start touchegg.service
+  fi
+  
   # Install common desktop packages
   pacman -S --noconfirm firefox flatpak vlc obsidian bitwarden flameshot ghostty neofetch
   
