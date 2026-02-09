@@ -205,7 +205,7 @@ Always review the script before running it on real hardware.
 
 ## 📜 License
 
-MIT License
+[MIT License](https://choosealicense.com/licenses/mit/)
 
 ---
 
